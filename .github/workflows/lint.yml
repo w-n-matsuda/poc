@@ -1,0 +1,39 @@
+name: lint TypeScript and css
+
+on:
+  pull_request:
+    branches: '**'
+
+env:
+  TOKEN: ${{ secrets.CHATBOT_API_TOKEN }}
+  ROOM_ID: ${{ secrets.NOTIFICATION_ROOM_ID }}
+
+jobs:
+  linters:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v1
+      with:
+        node-version: "14"
+    - run: npm install -g npm@7
+    - run: npm install
+    - run: npm run es-lint
+    - name: success notification
+      env:
+        LF: '\n'
+        BODY: 'によってPull requestが作成されました。'
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+        PR_USER: ${{ github.event.pull_request.user.login }}
+        PR_URL: ${{ github.event.pull_request.html_url }}
+      if: success()
+      run: |
+        curl -X POST -H "X-ChatWorkToken: ${TOKEN}" -d "body=`echo -e [toall]${LF}${PR_USER}${BODY}${LF}${PR_TITLE}${LF}${PR_BODY}${LF}${PR_URL}`" "https://api.chatwork.com/v2/rooms/${ROOM_ID}/messages"
+    - name: error notification
+      env:
+        BODY: 'pushされたブランチのビルドに失敗しました\nGitHub Actionsのresultを確認してください\n'
+      if: failure()
+      run: |
+          curl -X POST -H "X-ChatWorkToken: ${TOKEN}" -d "body=`echo -e [toall]${LF}${BODY}${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`" "https://api.chatwork.com/v2/rooms/${ROOM_ID}/messages"
+
